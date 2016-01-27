@@ -13,6 +13,7 @@ public:
   void setBeaconMinor(byte minor[]);
   bool sendBeacon(void);
   bool stopAdv(void);
+  bool isRunning(void);
 };
 
 struct BeaconParam {
