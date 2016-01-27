@@ -12,6 +12,7 @@ public:
   void setBeaconMajor(byte major[]);
   void setBeaconMinor(byte minor[]);
   bool sendBeacon(void);
+  bool stopAdv(void);
 };
 
 struct BeaconParam {
