@@ -1,11 +1,14 @@
 #include "fabo-ble113.h"
 #include <SoftwareSerial.h>
+#include <fabo-queue.h>
 
+queue myQueue;
 BeaconParam beaconParam;
 
 SoftwareSerial bleShield(12, 13);
 bool DEBUG = false;
 bool isRunningFlag = false;
+int buff_count = 0;
 
 void ble113::setDebug(){
     DEBUG = true;
@@ -260,6 +263,171 @@ bool ble113::stopAdv()
         }
       return false;
     }
+}
+
+bool ble113::scan(typeScanData *data) {
+  int i = 0;
+  int timeout = 100;
+  // 取得処理
+  long time = millis();
+  long timeoutEnd = time + timeout;
+  buff_count =0;
+  uint8_t read_data[255];
+  int len;
+  int data_count =0;
+  bool end_flg = false;
+  int scan_len = 4;
+
+  while(!end_flg){
+    if(bleShield.overflow()){
+	  Serial.println("Serial Over Flow!!!!!");
+	  bleShield.flush();
+	  myQueue.flush();
+	}
+
+    // シリアルから読み取ったデータはすぐにQueueに入れる
+    while (bleShield.available()) {
+      myQueue.push(bleShield.read());
+    }
+    if((myQueue.size() >= 255)){
+	  Serial.println("Serial Over Flow!!!!!");
+	  bleShield.flush();
+	  myQueue.flush();
+	}
+    // シリアルからの読み込みが無いタイミングで処理する
+    if (myQueue.size() > 0) {
+	  read_data[buff_count] =  myQueue.pop();
+
+	  if(buff_count == 1){
+	    scan_len = (int)(read_data[buff_count]) + 3;
+	  }
+	  else if (buff_count == 4){
+	    data->rssi = read_data[buff_count];
+	  }
+      // PacketType
+	  else if (buff_count == 5){
+	    data->packettype = read_data[buff_count];
+	  }
+      // Sender
+	  else if ((5 < buff_count) && (buff_count < 12)){
+	    data->sender[buff_count-6] = read_data[buff_count];
+	  }
+      // AddrType
+	  else if (buff_count == 12){
+	    data->addrtype = read_data[buff_count];
+	  }
+      // Bond
+	  else if (buff_count == 13){
+	    data->bond = read_data[buff_count];
+	  }
+      // data size
+	  else if(buff_count == 14){
+        data->data_len = (int)read_data[buff_count];
+	  }
+	  else if (buff_count > 14 ){
+          data->data[data_count] = read_data[buff_count];
+		  data_count++;
+	  }
+
+	  buff_count++;
+
+	 // 終了判定
+	  if (buff_count > scan_len){
+        end_flg = true;
+		break;
+      }
+	}
+	time = millis();
+	// データ取得件数が0、一定時間経過で検索を終了
+	if ((buff_count == 0) || (time > timeoutEnd)){
+		end_flg = true;
+	}
+  }
+  // スキャンデータ判定
+  if (scan_len < (int)0x0b){
+	  buff_count = 0;
+	  return false;
+  }
+
+  return true;
+
+}
+
+// Ble初期化
+void ble113::init() {
+
+  bleShield.begin(9600);
+  Serial.begin(115200);
+  
+  // リセットコマンド
+  bleShield.write((byte)0x00);
+  bleShield.write((byte)0x01);
+  bleShield.write((byte)0x00);
+  bleShield.write((byte)0x00);
+  bleShield.write((byte)0x00);
+
+  delay(2000);
+  // クリア
+  bleShield.flush();
+}
+
+// set scan parameters
+bool ble113::setScanParams(byte param[]) {
+
+  bleShield.write((byte)0x00); // 0:コマンド
+  bleShield.write((byte)0x05); // 1:サイズ　
+  bleShield.write((byte)0x06); // class
+  bleShield.write((byte)0x07);
+  bleShield.write(param[0]); // scan_interval 1  0x00XX  0x4 - 0x0004
+  bleShield.write(param[1]); // scan_interval 2  0xXX00
+  bleShield.write(param[2]); // scan_window  1  0x00XX
+  bleShield.write(param[3]); // scan_window  2  0xXX00
+  bleShield.write(param[4]);  // 0x01,
+  
+  byte check_res[6];
+  int i=0;
+  // レスポンスチェック
+  while (bleShield.available()){
+    check_res[i]=bleShield.read();
+    i++;
+  }
+
+  if(check_res[0]==0x00 &&
+     check_res[1]==0x02 &&
+     check_res[2]==0x06 &&
+     check_res[3]==0x07 &&
+     check_res[4]==0x00 &&
+     check_res[4]==0x00) {
+     return false; 
+  }
+  else {
+    return true;
+  }
+}
+
+// Scan開始
+bool ble113::scanStart() {
+  byte check_res[7];
+
+  bleShield.write((byte)0x00); // 0:コマンド
+  bleShield.write((byte)0x01); // 1:サイズ　
+  bleShield.write((byte)0x06); // class
+  bleShield.write((byte)0x02);
+  bleShield.write((byte)0x01);
+
+  for (int i = 0 ; i < 6 && bleShield.available() ; i++){
+    check_res[i]=bleShield.read();
+  }
+
+  if(check_res[0]==0x00 &&
+     check_res[1]==0x02 &&
+     check_res[2]==0x06 &&
+     check_res[3]==0x02 &&
+     check_res[4]==0x00 &&
+     check_res[5]==0x00) {
+     return false; 
+  }
+  return true;
 }
 
 bool ble113::isRunning(){
