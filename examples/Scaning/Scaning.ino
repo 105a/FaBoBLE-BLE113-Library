@@ -1,7 +1,7 @@
 #include <SoftwareSerial.h>
-#include <ble113.h>
+#include <fabo-ble113.h>
 
-ble113  myBle113;
+FaBoBLE  myBle;
 typeScanData buff;
 static typeScanData buff_init;
 
@@ -13,7 +13,7 @@ void setup() {
   Serial.write("*Start!\n");
 
   Serial.println("sd_ble_init()");
-  myBle113.init();
+  myBle.initBLE113();
   delay(1000);
 
   Serial.println("");
@@ -26,7 +26,7 @@ void setup() {
                    0x00,  //
                    0x01
                   }; //
-  if (myBle113.setScanParams(param)) {
+  if (myBle.setScanParams(param)) {
     Serial.println("param set OK!");
   }
   else {
@@ -36,7 +36,7 @@ void setup() {
   Serial.println("");
 
   Serial.println("sd_ble_gap_scan_start()");
-  if (myBle113.scanStart()) {
+  if (myBle.scanStart()) {
     Serial.println("Scan OK!");
   }
   else {
@@ -46,7 +46,7 @@ void setup() {
 
 void loop() {
 
-  if (myBle113.scan(&buff)){
+  if (myBle.scan(&buff)){
     Serial.print("RSSI:");
     Serial.print(buff.rssi);
     Serial.print(" PacketType:");

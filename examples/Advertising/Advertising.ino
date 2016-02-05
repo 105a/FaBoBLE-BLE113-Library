@@ -11,6 +11,7 @@
 // ボタンの押下状況取得用
 int buttonState = 0;
 bool isFirst = false;
+FaBoBLE faboBLE;
 
 void setup()
 {
@@ -18,10 +19,10 @@ void setup()
 
   // ボタンピンを入力用に設定
   pinMode(buttonPin, INPUT); 
-   
-  faboBLE.initBLE113();
   faboBLE.setDebug();
-  if(faboBLE.setAdvParams()){
+  faboBLE.init();
+  
+  if(faboBLE.setAdvParameters()){
     Serial.println("Success:setAdvParams()");
     if(faboBLE.setMode()){
       Serial.println("Success:setMode()");
@@ -47,18 +48,18 @@ void loop()
   // ボタン押下判定
   if (buttonState == HIGH && isFirst == false) {
       isFirst == true;
-      if(!faboBLE.isRunning()){     
+      if(!faboBLE.isAdvertising()){     
         if(faboBLE.sendBeacon()){
-          Serial.println("Success:Beacon advertising"); 
+          Serial.println("Success:Start Beacon advertising"); 
         } else {
-          Serial.println("Failed:Beacon advertising"); 
+          Serial.println("Failed:Start Beacon advertising"); 
         }
       }  
-      else if(faboBLE.isRunning()){     
+      else if(faboBLE.isAdvertising()){     
         if(faboBLE.stopAdv()){
-          Serial.println("Success:stop Beacon advertising "); 
+          Serial.println("Success:Stop Beacon advertising "); 
         } else {
-          Serial.println("Failed:stop Beacon advertising"); 
+          Serial.println("Failed:Stop Beacon advertising"); 
         }   
       }
   } else {

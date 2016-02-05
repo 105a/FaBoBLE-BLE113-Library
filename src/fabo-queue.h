@@ -1,7 +1,11 @@
+#ifndef QUENE_H
+#define QUENE_H
+
 #include "Arduino.h"
 
-class queue
+class FaboQueue
 {
+
 public:
   // push データ挿入
   bool push(uint8_t);
@@ -22,3 +26,5 @@ private:
   int next_pop  = 0;         // データ取得位置
   int data_size = 0;         // データサイズ
 };
+
+#endif

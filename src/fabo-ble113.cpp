@@ -1,437 +1,432 @@
+/**
+ * @file fabo-ble113.cpp
+ * @brief fabo libtary of BLE113 BGAPI
+ * @author Akira Sasaki, Shimakage Kouji
+ * @date 2,6, 2015
+ */
+
 #include "fabo-ble113.h"
 #include <SoftwareSerial.h>
-#include <fabo-queue.h>
 
-queue myQueue;
-BeaconParam beaconParam;
+FaboQueue myQueue;
+FaBoBLE::BeaconParam beaconParam;
 
-SoftwareSerial bleShield(12, 13);
-bool DEBUG = false;
-bool isRunningFlag = false;
-int buff_count = 0;
+//! Serial connection for BLE113 module
+SoftwareSerial bleBrick(12, 13);
 
-void ble113::setDebug(){
+/**
+ * @fn
+ * Enable debug message.
+ */
+void FaBoBLE::setDebug(){
     DEBUG = true;
 }
 
-void ble113::initBLE113()
-{
-    // BLE„Å®„ÅÆÈÄö‰ø°Áî®
-    bleShield.begin(9600);
-    
-    if(DEBUG){
-        Serial.begin(9600);
-    }
-}
-
-void ble113::setBeaconUuid(byte uuid[]){
+/**
+ * @fn
+ * Set beacon uuid.
+ * @param uuid[] UUID(16bytes)
+ */
+void FaBoBLE::setBeaconUuid(byte uuid[]){
     
     memcpy(beaconParam.uuid, uuid, 16);
 }
 
-void ble113::setBeaconMajor(byte major[]){
+/**
+ * @fn
+ * Set beacon major id.
+ * @param major[] majorId(2bytes)
+ */
+void FaBoBLE::setBeaconMajor(byte major[]){
     
     memcpy(beaconParam.major, major, 2);
 }
 
-void ble113::setBeaconMinor(byte minor[]){
+/**
+ * @fn
+ * Set beacon minor id.
+ * @param major[] minorId(2bytes)
+ */
+void FaBoBLE::setBeaconMinor(byte minor[]){
     
     memcpy(beaconParam.minor, minor, 2);
 }
 
-bool ble113::sendBeacon(){
+/**
+ * @fn
+ * send beacon(start advertising).
+ */
+bool FaBoBLE::sendBeacon(){
     
-    byte command[6] = {0x00,  // message type  ->0x00:command
-        0x20,     // Minimum payload length
-        0x06,     // Message class -> 0x06:Generic Access Profile
-        0x09,     // Message ID
-        0x00,     // Advertisement data type -> 0x00: sets advertisement data e
-        0x1e};    // Advertisement data to send
+    // send BGAPI command.
+    sendCommand(COMMAND_SEND_BEACON, 6);
     
-    byte beaconHeader[9] = {0x02,
-        0x01,
-        0x06,
-        0x1A,
-        0xFF,
-        0x4C,
-        0x00,
-        0x02,
-        0x15};
+    // iBeacon header.
+    byte beaconHeader[9] = {  0x02, // Flags[0], Bluetooth 4.0 Core Specification
+        0x01, // Flags[1], Bluetooth 4.0 Core Specification
+        0x06, // Flags[2], Bluetooth 4.0 Core Specification
+        0x1A, // Length, Bluetooth 4.0 Core Specification
+        0xFF, // Type, Bluetooth 4.0 Core Specification
+        0x4C, // Company ID[0]
+        0x00, // Company ID[1]
+        0x02, // Beacon Type[0]
+        0x15}; // Beacon Type[1]
+    
+    // txPower
     byte txPower = 0xC9;
     
-    for(int i = 0; i < 6; i++){
-        bleShield.write((byte)command[i]);
-    }
+    // send iBeacon header.
     for(int i = 0; i < 9; i++){
-        bleShield.write((byte)beaconHeader[i]);
+        bleBrick.write((byte)beaconHeader[i]);
     }
+    
+    // send iBeacon UUID.
     for(int i = 0; i < 16; i++){
-        bleShield.write((byte)beaconParam.uuid[i]);
+        bleBrick.write((byte)beaconParam.uuid[i]);
     }
+    
+    // send iBeacon MajorID.
     for(int i = 0; i < 2; i++){
-        bleShield.write((byte)beaconParam.major[i]);
+        bleBrick.write((byte)beaconParam.major[i]);
     }
+    
+    // send iBeacon MinorID.
     for(int i = 0; i < 2; i++){
-        bleShield.write((byte)beaconParam.minor[i]);
+        bleBrick.write((byte)beaconParam.minor[i]);
     }
     
-    bleShield.write((byte)0xC9);
+    // send txPower.
+    bleBrick.write(txPower);
     
-    delay(1000);
+    // Waiting reply.
+    delay(WAIT_REPLY);
     
+    // Receive reply.
     byte buffer[10];
     int i = 0;
-    while (bleShield.available()) {
-        buffer[i] = bleShield.read();
+    while (bleBrick.available()) {
+        buffer[i] = bleBrick.read();
         i++;
     }
     
-    if(buffer[0] == 0x00 && buffer[1] == 0x02 && buffer[2] == 0x06 && buffer[3] == 0x09){
-        if(buffer[4] == 0x00 && buffer[5] == 0x00){
-            isRunningFlag = true;
-          
-            return true;
-        }
-        else {
-            if(DEBUG){
-                Serial.println("(sendBeacon)Error Code");
-                Serial.println(buffer[5],HEX);
-                Serial.println(buffer[4],HEX);
-            }
-            return false;
-        }
-    } else {
-        if(DEBUG){
-            Serial.println("(sendBeacon)Unknow Error");
-            Serial.println(buffer[0],HEX);
-            Serial.println(buffer[1],HEX);
-            Serial.println(buffer[2],HEX);
-            Serial.println(buffer[3],HEX);
-            Serial.println(buffer[4],HEX);
-            Serial.println(buffer[5],HEX);
-        }
-        return false;
-    }
-}
-
-bool ble113::setMode()
-{
-    
-    byte command[6] = {0x00,  // message type  ->0x00:command
-        0x02,     // Minimum payload length
-        0x06,     // Message class -> 0x06:Generic Access Profile
-        0x01,     // Message ID
-        0x04,     // GAP Discoverable Mode
-        0x00};    // GAP Connectable Mode
-    
-    for(int i = 0; i < 6; i++){
-        bleShield.write((byte)command[i]);
-    }
-    delay(1000);
-    
-    byte buffer[10];
-    int i = 0;
-    while (bleShield.available()) {
-        buffer[i] = bleShield.read();
-        i++;
-    }
-    
-    if(buffer[0] == 0x00 && buffer[1] == 0x02 && buffer[2] == 0x06 && buffer[3] == 0x01){
-        if(buffer[4] == 0x00 && buffer[5] == 0x00){
-            
-            return true;
-        }
-        else {
-            if(DEBUG){
-                Serial.println("Error Code");
-                Serial.println(buffer[5],HEX);
-                Serial.println(buffer[4],HEX);
-            }
-            return false;
-        }
-    } else {
-        if(DEBUG){
-            Serial.println("Unknow Error");
-            Serial.println(buffer[0],HEX);
-            Serial.println(buffer[1],HEX);
-            Serial.println(buffer[2],HEX);
-            Serial.println(buffer[3],HEX);
-            Serial.println(buffer[4],HEX);
-            Serial.println(buffer[5],HEX);
-        }
-        return false;
-    }
-}
-
-
-bool ble113::setAdvParams()
-{
-    byte command[9] = {0x00,
-        0x05,
-        0x06,
-        0x08,
-        0x00,
-        0x02,
-        0x00,
-        0x02,
-        0x07};
-    
-    for(int i = 0; i < 9; i++){
-        bleShield.write((byte)command[i]);
-    }
-    delay(1000);
-    
-    byte buffer[10];
-    int i = 0;
-    while (bleShield.available()) {
-        buffer[i] = bleShield.read();
-        i++;
-    }
-    
-    if(buffer[0] == 0x00 && buffer[1] == 0x02 && buffer[2] == 0x06 && buffer[3] == 0x08){
-        if(buffer[4] == 0x00 && buffer[5] == 0x00){
-            
-            return true;
-        }
-        else {
-            if(DEBUG){
-                Serial.println("Error Code");
-                Serial.println(buffer[5],HEX);
-                Serial.println(buffer[4],HEX);
-            }
-            return false;
-        }
-    } else {
-        if(DEBUG){
-            Serial.println("Unknow Error");
-            Serial.println(buffer[0],HEX);
-            Serial.println(buffer[1],HEX);
-            Serial.println(buffer[2],HEX);
-            Serial.println(buffer[3],HEX);
-            Serial.println(buffer[4],HEX);
-            Serial.println(buffer[5],HEX);
-        }
-        return false;
-    }
-}
-
-
-bool ble113::stopAdv()
-{
-
-  byte command[6] = {0x00,  // message type  ->0x00:command
-                  0x02,     // Minimum payload length
-                  0x06,     // Message class -> 0x06:Generic Access Profile
-                  0x01,     // Message ID
-                  0x00,     // GAP Discoverable Mode
-                  0x00};    // GAP Connectable Mode
-
-    for(int i = 0; i < 6; i++){ 
-      bleShield.write((byte)command[i]);
-    }
-    delay(1000);
-
-    byte buffer[10];
-    int i = 0;
-    while (bleShield.available()) {
-      buffer[i] = bleShield.read();
-      i++;
-    }
-
-    if(buffer[0] == 0x00 && buffer[1] == 0x02 && buffer[2] == 0x06 && buffer[3] == 0x01){
-      if(buffer[4] == 0x00 && buffer[5] == 0x00){
-        isRunningFlag = false;
+    if(errorCheck(buffer)){
+        is_advertising = true;
         return true;
-      }
-      else {
+    } else {
+        return false;
+    }
+}
+
+/**
+ * @fn
+ * set mode.
+ */
+bool FaBoBLE::setMode()
+{
+    // send BGAPI command.
+    sendCommand(COMMAND_SET_MODE_FOR_BEACON, 6);
+    
+    // Waiting reply.
+    delay(WAIT_REPLY);
+    
+    // recieve BGAPI response.
+    byte buffer[10];
+    int i = 0;
+    while (bleBrick.available()) {
+        buffer[i] = bleBrick.read();
+        i++;
+    }
+    
+    return errorCheck(buffer);
+}
+
+/**
+ * @fn
+ * Set Adv Parameters.
+ */
+bool FaBoBLE::setAdvParameters()
+{
+    
+    // send BGAPI command.
+    sendCommand(COMMAND_SET_ADV_PARAMETERS_FOR_BEACON, 9);
+    
+    // Waiting reply.
+    delay(WAIT_REPLY);
+    
+    // Receive BGAPI response.
+    byte buffer[10];
+    int i = 0;
+    while (bleBrick.available()) {
+        buffer[i] = bleBrick.read();
+        i++;
+    }
+    
+    return errorCheck(buffer);
+}
+
+
+/**
+ * @fn
+ * stop advertising.
+ */
+bool FaBoBLE::stopAdv()
+{
+    
+    // send BGAPI command.
+    sendCommand(COMMAND_STOP_MODE_STOP_FOR_BEACON, 6);
+    
+    // Waiting reply.
+    delay(WAIT_REPLY);
+    
+    // Receive BGAPI response.
+    byte buffer[10];
+    int i = 0;
+    while (bleBrick.available()) {
+        buffer[i] = bleBrick.read();
+        i++;
+    }
+    
+    
+    if(errorCheck(buffer)){
+        is_advertising = false;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * @fn
+ * scan.
+ */
+bool FaBoBLE::scan(ScanData *data) {
+    int i = 0;
+    int timeout = 100;
+    
+    long time = millis();
+    long timeoutEnd = time + timeout;
+    buff_count =0;
+    uint8_t read_data[255];
+    int len;
+    int data_count =0;
+    bool end_flg = false;
+    int scan_len = 4;
+    
+    while(!end_flg){
+        if(bleBrick.overflow()){
+            if(DEBUG){
+                Serial.println("Serial Over Flow!!!!!");
+            }
+            bleBrick.flush();
+            myQueue.flush();
+        }
+        
+        // Push data to FIFO from buffer.
+        while (bleBrick.available()) {
+            myQueue.push(bleBrick.read());
+        }
+        
+        if((myQueue.size() >= 255)){
+            if(DEBUG){
+                Serial.println("Serial Over Flow!!!!!");
+            }
+            bleBrick.flush();
+            myQueue.flush();
+        }
+        
+        // ÔøΩVÔøΩÔøΩÔøΩAÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÃì«Ç›çÔøΩÔøΩ›ÇÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ^ÔøΩCÔøΩ~ÔøΩÔøΩÔøΩOÔøΩ≈èÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ
+        if (myQueue.size() > 0) {
+            read_data[buff_count] =  myQueue.pop();
+            
+            if(buff_count == 1){
+                scan_len = (int)(read_data[buff_count]) + 3;
+            }
+            else if (buff_count == 4){
+                data->rssi = read_data[buff_count];
+            }
+            // PacketType
+            else if (buff_count == 5){
+                data->packettype = read_data[buff_count];
+            }
+            // Sender
+            else if ((5 < buff_count) && (buff_count < 12)){
+                data->sender[buff_count-6] = read_data[buff_count];
+            }
+            // AddrType
+            else if (buff_count == 12){
+                data->addrtype = read_data[buff_count];
+            }
+            // Bond
+            else if (buff_count == 13){
+                data->bond = read_data[buff_count];
+            }
+            // data size
+            else if(buff_count == 14){
+                data->data_len = (int)read_data[buff_count];
+            }
+            else if (buff_count > 14 ){
+                data->data[data_count] = read_data[buff_count];
+                data_count++;
+            }
+            
+            buff_count++;
+            
+            // ÔøΩIÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ
+            if (buff_count > scan_len){
+                end_flg = true;
+                break;
+            }
+        }
+        time = millis();
+        // ÔøΩfÔøΩ[ÔøΩ^ÔøΩÊìæÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ0ÔøΩAÔøΩÔøΩËéûÔøΩ‘åoÔøΩﬂÇ≈åÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩIÔøΩÔøΩ
+        if ((buff_count == 0) || (time > timeoutEnd)){
+            end_flg = true;
+        }
+    }
+    // ÔøΩXÔøΩLÔøΩÔøΩÔøΩÔøΩÔøΩfÔøΩ[ÔøΩ^ÔøΩÔøΩÔøΩÔøΩ
+    if (scan_len < (int)0x0b){
+        buff_count = 0;
+        return false;
+    }
+    
+    return true;
+    
+}
+
+/**
+ * @fn
+ * init.
+ */
+void FaBoBLE::init() {
+
+    // Connect bleBrick.
+    bleBrick.begin(BLE_URAT);
+    
+    // send BGAPI command.
+    sendCommand(COMMAND_RESET, 5);
+    
+    // Wait reply.
+    delay(2000);
+    
+    // Flash of software serial.
+    bleBrick.flush();
+}
+
+/**
+ * @fn
+ * Set scan parameters
+ *
+ */
+bool FaBoBLE::setScanParams(byte param[]) {
+    
+    
+    bleBrick.write((byte)0x00); // 0:ÔøΩRÔøΩ}ÔøΩÔøΩÔøΩh
+    bleBrick.write((byte)0x05); // 1:ÔøΩTÔøΩCÔøΩYÔøΩ@
+    bleBrick.write((byte)0x06); // class
+    bleBrick.write((byte)0x07);
+    bleBrick.write(param[0]); // scan_interval 1  0x00XX  0x4 - 0x0004
+    bleBrick.write(param[1]); // scan_interval 2  0xXX00
+    bleBrick.write(param[2]); // scan_window  1  0x00XX
+    bleBrick.write(param[3]); // scan_window  2  0xXX00
+    bleBrick.write(param[4]);  // 0x01,
+    
+    // Waiting reply.
+    delay(WAIT_REPLY);
+    
+    // Receive BGAPI response.
+    byte buffer[10];
+    int i = 0;
+    while (bleBrick.available()) {
+        buffer[i] = bleBrick.read();
+        i++;
+    }
+    
+    return errorCheck(buffer);
+}
+
+/**
+ * @fn
+ * Scan start.
+ */
+bool FaBoBLE::scanStart() {
+    
+    // send BGAPI command.
+    sendCommand(COMMAND_START_DISCOVER,5);
+    
+    // Waiting reply.
+    delay(WAIT_REPLY);
+    
+    // Receive BGAPI response.
+    byte buffer[10];
+    int i = 0;
+    while (bleBrick.available()) {
+        buffer[i] = bleBrick.read();
+        i++;
+    }
+    
+    return errorCheck(buffer);
+}
+
+/**
+ * @fn
+ * Status of advertising.
+ */
+bool FaBoBLE::isAdvertising(){
+    return is_advertising;
+}
+
+/**
+ * @fn
+ * Status is scanning.
+ */
+bool FaBoBLE::isScanning(){
+    return is_scanning;
+}
+
+/**
+ * @fn
+ * Send command.
+ */
+void FaBoBLE::sendCommand(byte command[], int length)
+{
+
+    // send BGAPI command.
+    for(int i = 0; i < length; i++){
+        bleBrick.write((byte)command[i]);
+    }
+}
+
+
+/**
+ * @fn
+ * Error check.
+ */
+bool FaBoBLE::errorCheck(byte buffer[]){
+    // Error check.
+    if(buffer[0] == 0x00 && buffer[1] == 0x02 && buffer[2] == 0x06){
+        if(buffer[4] == 0x00 && buffer[5] == 0x00){
+            
+            return true;
+        }
+        else {
+            if(DEBUG){
+                Serial.println("Error Code");
+                Serial.println(buffer[5],HEX);
+                Serial.println(buffer[4],HEX);
+            }
+            return false;
+        }
+    } else {
         if(DEBUG){
-          Serial.println("Error Code");
-          Serial.println(buffer[5],HEX);
-          Serial.println(buffer[4],HEX);
+            Serial.println("Unknow Error");
+            Serial.println(buffer[0],HEX);
+            Serial.println(buffer[1],HEX);
+            Serial.println(buffer[2],HEX);
+            Serial.println(buffer[3],HEX);
+            Serial.println(buffer[4],HEX);
+            Serial.println(buffer[5],HEX);
         }
         return false;
-      }
-    } else {
-      if(DEBUG){
-          Serial.println("Unknow Error");
-          Serial.println(buffer[0],HEX);
-          Serial.println(buffer[1],HEX);
-          Serial.println(buffer[2],HEX);
-          Serial.println(buffer[3],HEX);
-          Serial.println(buffer[4],HEX);
-          Serial.println(buffer[5],HEX);
-        }
-      return false;
     }
 }
 
-bool ble113::scan(typeScanData *data) {
-  int i = 0;
-  int timeout = 100;
-  // éÊìæèàóù
-  long time = millis();
-  long timeoutEnd = time + timeout;
-  buff_count =0;
-  uint8_t read_data[255];
-  int len;
-  int data_count =0;
-  bool end_flg = false;
-  int scan_len = 4;
-
-  while(!end_flg){
-    if(bleShield.overflow()){
-	  Serial.println("Serial Over Flow!!!!!");
-	  bleShield.flush();
-	  myQueue.flush();
-	}
-
-    // ÉVÉäÉAÉãÇ©ÇÁì«Ç›éÊÇ¡ÇΩÉfÅ[É^ÇÕÇ∑ÇÆÇ…QueueÇ…ì¸ÇÍÇÈ
-    while (bleShield.available()) {
-      myQueue.push(bleShield.read());
-    }
-    if((myQueue.size() >= 255)){
-	  Serial.println("Serial Over Flow!!!!!");
-	  bleShield.flush();
-	  myQueue.flush();
-	}
-    // ÉVÉäÉAÉãÇ©ÇÁÇÃì«Ç›çûÇ›Ç™ñ≥Ç¢É^ÉCÉ~ÉìÉOÇ≈èàóùÇ∑ÇÈ
-    if (myQueue.size() > 0) {
-	  read_data[buff_count] =  myQueue.pop();
-
-	  if(buff_count == 1){
-	    scan_len = (int)(read_data[buff_count]) + 3;
-	  }
-	  else if (buff_count == 4){
-	    data->rssi = read_data[buff_count];
-	  }
-      // PacketType
-	  else if (buff_count == 5){
-	    data->packettype = read_data[buff_count];
-	  }
-      // Sender
-	  else if ((5 < buff_count) && (buff_count < 12)){
-	    data->sender[buff_count-6] = read_data[buff_count];
-	  }
-      // AddrType
-	  else if (buff_count == 12){
-	    data->addrtype = read_data[buff_count];
-	  }
-      // Bond
-	  else if (buff_count == 13){
-	    data->bond = read_data[buff_count];
-	  }
-      // data size
-	  else if(buff_count == 14){
-        data->data_len = (int)read_data[buff_count];
-	  }
-	  else if (buff_count > 14 ){
-          data->data[data_count] = read_data[buff_count];
-		  data_count++;
-	  }
-
-	  buff_count++;
-
-	 // èIóπîªíË
-	  if (buff_count > scan_len){
-        end_flg = true;
-		break;
-      }
-	}
-	time = millis();
-	// ÉfÅ[É^éÊìæåèêîÇ™0ÅAàÍíËéûä‘åoâﬂÇ≈åüçıÇèIóπ
-	if ((buff_count == 0) || (time > timeoutEnd)){
-		end_flg = true;
-	}
-  }
-  // ÉXÉLÉÉÉìÉfÅ[É^îªíË
-  if (scan_len < (int)0x0b){
-	  buff_count = 0;
-	  return false;
-  }
-
-  return true;
-
-}
-
-// Bleèâä˙âª
-void ble113::init() {
-
-  bleShield.begin(9600);
-  Serial.begin(115200);
-  
-  // ÉäÉZÉbÉgÉRÉ}ÉìÉh
-  bleShield.write((byte)0x00);
-  bleShield.write((byte)0x01);
-  bleShield.write((byte)0x00);
-  bleShield.write((byte)0x00);
-  bleShield.write((byte)0x00);
-
-  delay(2000);
-  // ÉNÉäÉA
-  bleShield.flush();
-}
-
-// set scan parameters
-bool ble113::setScanParams(byte param[]) {
-
-  bleShield.write((byte)0x00); // 0:ÉRÉ}ÉìÉh
-  bleShield.write((byte)0x05); // 1:ÉTÉCÉYÅ@
-  bleShield.write((byte)0x06); // class
-  bleShield.write((byte)0x07);
-  bleShield.write(param[0]); // scan_interval 1  0x00XX  0x4 - 0x0004
-  bleShield.write(param[1]); // scan_interval 2  0xXX00
-  bleShield.write(param[2]); // scan_window  1  0x00XX
-  bleShield.write(param[3]); // scan_window  2  0xXX00
-  bleShield.write(param[4]);  // 0x01,
-  
-  byte check_res[6];
-  int i=0;
-  // ÉåÉXÉ|ÉìÉXÉ`ÉFÉbÉN
-  while (bleShield.available()){
-    check_res[i]=bleShield.read();
-    i++;
-  }
-
-  if(check_res[0]==0x00 &&
-     check_res[1]==0x02 &&
-     check_res[2]==0x06 &&
-     check_res[3]==0x07 &&
-     check_res[4]==0x00 &&
-     check_res[4]==0x00) {
-     return false; 
-  }
-  else {
-    return true;
-  }
-}
-
-// ScanäJén
-bool ble113::scanStart() {
-  byte check_res[7];
-
-  bleShield.write((byte)0x00); // 0:ÉRÉ}ÉìÉh
-  bleShield.write((byte)0x01); // 1:ÉTÉCÉYÅ@
-  bleShield.write((byte)0x06); // class
-  bleShield.write((byte)0x02);
-  bleShield.write((byte)0x01);
-
-  for (int i = 0 ; i < 6 && bleShield.available() ; i++){
-    check_res[i]=bleShield.read();
-  }
-
-  if(check_res[0]==0x00 &&
-     check_res[1]==0x02 &&
-     check_res[2]==0x06 &&
-     check_res[3]==0x02 &&
-     check_res[4]==0x00 &&
-     check_res[5]==0x00) {
-     return false; 
-  }
-  return true;
-}
-
-bool ble113::isRunning(){
-    return isRunningFlag;
-}
-
-ble113 faboBLE;
