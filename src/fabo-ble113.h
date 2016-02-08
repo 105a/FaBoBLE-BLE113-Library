@@ -3,13 +3,14 @@
 
 #include "Arduino.h"
 #include <SoftwareSerial.h>
-#include <fabo-queue.h>
+
+#define BUFF_SIZE 11
 
 class FaBoBLE
 
 {
 public:
-    
+
     //! Scan data struct
     struct ScanData{
         int8_t rssi;
@@ -18,9 +19,9 @@ public:
         byte addrtype;
         byte bond;
         int data_len;
-        byte data[255];
+        byte data[50];
     };
-    
+
     //! Beacon data struct
     struct BeaconParam {
         byte uuid[16];
@@ -28,7 +29,7 @@ public:
         byte minor[2];
     };
 
-    
+
     void setDebug(void);
     bool setAdvParameters(void);
     bool setMode(void);
@@ -39,18 +40,25 @@ public:
     bool stopAdv(void);
     bool isAdvertising(void);
     bool isScanning(void);
-    
-    bool scan(ScanData *data);
+
     // Ble初期化
     void init();
     // set scan parameters
     bool setScanParams(byte param[]);
     // Scan開始
-    bool scanStart();
-    int count();
+    bool scan();
+    // データ解析
+    void tick();
+
+    bool getScanData(ScanData *out);
+    int getDataCount(void);
     // 出力処理(16進数２桁)
     void hex_output(byte out_byte);
-    
+
+//    // 取得イベント
+//    void (*ble_evt_scan_res)(const struct ScanData *data);
+
+
 private:
     // Command(Set Adv Data).
     // Set advertisement or scan response data.
@@ -73,7 +81,7 @@ private:
         0x01,     // Message ID, 0x01
         0x04,     // GAP Discoverable Mode
         0x00};    // GAP Connectable Mode
-    
+
     // Command(Set Adv Parameters).
     // Sets the advertising parameters.
     // V.1.3 API DOCUMENTATION Version 3.2 P96.
@@ -97,7 +105,7 @@ private:
         0x01,     // Message ID -> 0x01.
         0x00,     // GAP Discoverable Mode -> 0x00:gap_non_discoverable.
         0x00};    // GAP Connectable Mode.
-    
+
     // Command(Discover).
     // Resets the local device immediately.
     // The command does not have a response.
@@ -107,7 +115,7 @@ private:
         0x06,     // Message class -> 0x06:GAP.
         0x02,     // Message ID -> 0x02.
         0x01};    // mode -> 0x01:gap_discover_generic.
-    
+
     // Command(Reset).
     // Resets the local device immediately.
     // The command does not have a response.
@@ -117,33 +125,41 @@ private:
         0x00,     // Message class -> 0x00:System.
         0x00,     // Message ID -> 0x01.
         0x00};    // Selects the boot mode -> 0x00:boot to main program
-    
+
     bool errorCheck(byte buffer[]);
-    
+
     void sendCommand(byte command[], int length);
-    
+
+    int pos = 0;
+    int dataCount = 0;
+    int scanLen = 1;
+    int dataIn = 0;
+    int dataOut = 0;
+    bool broken = false;
+
+    //! count of buffer.
+    int buffCount = 0;
+
+    // Read Buff
+    ScanData dataBuff[BUFF_SIZE];
+
     //! flag of Debug.
     bool DEBUG = false;
-    
+
     //! status of advertising.
     bool is_advertising = false;
-    
+
     //! status of scanning.
     bool is_scanning = false;
-    
-    //! count of buffer.
-    int buff_count = 0;
-    
+
     // Wait time before BGAPI response.
     int WAIT_REPLY = 1000;
-    
+
     // Speed of BLE Brick.
     int BLE_URAT = 9600;
-    
+
     // Speed of Serial for DEBUG.
-    int DEBUG_URAT = 9600;
+    int DEBUG_URAT = 115200;
 };
 
 #endif
-
-

@@ -1,14 +1,13 @@
 /**
  * @file fabo-ble113.cpp
  * @brief fabo libtary of BLE113 BGAPI
- * @author Akira Sasaki, Shimakage Kouji
+ * @author Akira Sasaki, Koji Shimakage
  * @date 2,6, 2015
  */
 
 #include "fabo-ble113.h"
 #include <SoftwareSerial.h>
 
-FaboQueue myQueue;
 FaBoBLE::BeaconParam beaconParam;
 
 //! Serial connection for BLE113 module
@@ -28,7 +27,7 @@ void FaBoBLE::setDebug(){
  * @param uuid[] UUID(16bytes)
  */
 void FaBoBLE::setBeaconUuid(byte uuid[]){
-    
+
     memcpy(beaconParam.uuid, uuid, 16);
 }
 
@@ -38,7 +37,7 @@ void FaBoBLE::setBeaconUuid(byte uuid[]){
  * @param major[] majorId(2bytes)
  */
 void FaBoBLE::setBeaconMajor(byte major[]){
-    
+
     memcpy(beaconParam.major, major, 2);
 }
 
@@ -48,7 +47,7 @@ void FaBoBLE::setBeaconMajor(byte major[]){
  * @param major[] minorId(2bytes)
  */
 void FaBoBLE::setBeaconMinor(byte minor[]){
-    
+
     memcpy(beaconParam.minor, minor, 2);
 }
 
@@ -57,10 +56,10 @@ void FaBoBLE::setBeaconMinor(byte minor[]){
  * send beacon(start advertising).
  */
 bool FaBoBLE::sendBeacon(){
-    
+
     // send BGAPI command.
     sendCommand(COMMAND_SEND_BEACON, 6);
-    
+
     // iBeacon header.
     byte beaconHeader[9] = {  0x02, // Flags[0], Bluetooth 4.0 Core Specification
         0x01, // Flags[1], Bluetooth 4.0 Core Specification
@@ -71,36 +70,36 @@ bool FaBoBLE::sendBeacon(){
         0x00, // Company ID[1]
         0x02, // Beacon Type[0]
         0x15}; // Beacon Type[1]
-    
+
     // txPower
     byte txPower = 0xC9;
-    
+
     // send iBeacon header.
     for(int i = 0; i < 9; i++){
         bleBrick.write((byte)beaconHeader[i]);
     }
-    
+
     // send iBeacon UUID.
     for(int i = 0; i < 16; i++){
         bleBrick.write((byte)beaconParam.uuid[i]);
     }
-    
+
     // send iBeacon MajorID.
     for(int i = 0; i < 2; i++){
         bleBrick.write((byte)beaconParam.major[i]);
     }
-    
+
     // send iBeacon MinorID.
     for(int i = 0; i < 2; i++){
         bleBrick.write((byte)beaconParam.minor[i]);
     }
-    
+
     // send txPower.
     bleBrick.write(txPower);
-    
+
     // Waiting reply.
     delay(WAIT_REPLY);
-    
+
     // Receive reply.
     byte buffer[10];
     int i = 0;
@@ -108,7 +107,7 @@ bool FaBoBLE::sendBeacon(){
         buffer[i] = bleBrick.read();
         i++;
     }
-    
+
     if(errorCheck(buffer)){
         is_advertising = true;
         return true;
@@ -125,10 +124,10 @@ bool FaBoBLE::setMode()
 {
     // send BGAPI command.
     sendCommand(COMMAND_SET_MODE_FOR_BEACON, 6);
-    
+
     // Waiting reply.
     delay(WAIT_REPLY);
-    
+
     // recieve BGAPI response.
     byte buffer[10];
     int i = 0;
@@ -136,7 +135,7 @@ bool FaBoBLE::setMode()
         buffer[i] = bleBrick.read();
         i++;
     }
-    
+
     return errorCheck(buffer);
 }
 
@@ -146,13 +145,13 @@ bool FaBoBLE::setMode()
  */
 bool FaBoBLE::setAdvParameters()
 {
-    
+
     // send BGAPI command.
     sendCommand(COMMAND_SET_ADV_PARAMETERS_FOR_BEACON, 9);
-    
+
     // Waiting reply.
     delay(WAIT_REPLY);
-    
+
     // Receive BGAPI response.
     byte buffer[10];
     int i = 0;
@@ -160,10 +159,9 @@ bool FaBoBLE::setAdvParameters()
         buffer[i] = bleBrick.read();
         i++;
     }
-    
+
     return errorCheck(buffer);
 }
-
 
 /**
  * @fn
@@ -171,13 +169,13 @@ bool FaBoBLE::setAdvParameters()
  */
 bool FaBoBLE::stopAdv()
 {
-    
+
     // send BGAPI command.
     sendCommand(COMMAND_STOP_MODE_STOP_FOR_BEACON, 6);
-    
+
     // Waiting reply.
     delay(WAIT_REPLY);
-    
+
     // Receive BGAPI response.
     byte buffer[10];
     int i = 0;
@@ -185,8 +183,7 @@ bool FaBoBLE::stopAdv()
         buffer[i] = bleBrick.read();
         i++;
     }
-    
-    
+
     if(errorCheck(buffer)){
         is_advertising = false;
         return true;
@@ -199,98 +196,100 @@ bool FaBoBLE::stopAdv()
  * @fn
  * scan.
  */
-bool FaBoBLE::scan(ScanData *data) {
-    int i = 0;
-    int timeout = 100;
-    
-    long time = millis();
-    long timeoutEnd = time + timeout;
-    buff_count =0;
-    uint8_t read_data[255];
-    int len;
-    int data_count =0;
-    bool end_flg = false;
-    int scan_len = 4;
-    
-    while(!end_flg){
+void FaBoBLE::tick() {
+
+    uint8_t readData;
+    if(!broken){
         if(bleBrick.overflow()){
             if(DEBUG){
                 Serial.println("Serial Over Flow!!!!!");
             }
-            bleBrick.flush();
-            myQueue.flush();
+            broken = true;
+            pos = 0;
         }
-        
-        // Push data to FIFO from buffer.
-        while (bleBrick.available()) {
-            myQueue.push(bleBrick.read());
+    }
+
+    if (bleBrick.available()) {
+        readData = bleBrick.read();
+        // skip broken data
+        if (broken){
+            return;
         }
-        
-        if((myQueue.size() >= 255)){
-            if(DEBUG){
-                Serial.println("Serial Over Flow!!!!!");
-            }
-            bleBrick.flush();
-            myQueue.flush();
-        }
-        
-        // �V���A������̓ǂݍ��݂������^�C�~���O�ŏ�������
-        if (myQueue.size() > 0) {
-            read_data[buff_count] =  myQueue.pop();
-            
-            if(buff_count == 1){
-                scan_len = (int)(read_data[buff_count]) + 3;
-            }
-            else if (buff_count == 4){
-                data->rssi = read_data[buff_count];
-            }
-            // PacketType
-            else if (buff_count == 5){
-                data->packettype = read_data[buff_count];
-            }
-            // Sender
-            else if ((5 < buff_count) && (buff_count < 12)){
-                data->sender[buff_count-6] = read_data[buff_count];
-            }
-            // AddrType
-            else if (buff_count == 12){
-                data->addrtype = read_data[buff_count];
-            }
-            // Bond
-            else if (buff_count == 13){
-                data->bond = read_data[buff_count];
-            }
-            // data size
-            else if(buff_count == 14){
-                data->data_len = (int)read_data[buff_count];
-            }
-            else if (buff_count > 14 ){
-                data->data[data_count] = read_data[buff_count];
-                data_count++;
-            }
-            
-            buff_count++;
-            
-            // �I������
-            if (buff_count > scan_len){
-                end_flg = true;
+
+        ScanData &data = dataBuff[dataIn];
+
+        switch(pos){
+            case 0:
+                if (readData != 0x80) {
+                    broken = true;
+                }
                 break;
+
+            case 1:
+                scanLen = (int)(readData) + 3;
+                // impossible value is broken data...
+                if (scanLen < 0 || scanLen > 50) {
+                    broken = true;
+                  }
+                break;
+
+            case 4:
+                data.rssi = readData;
+                break;
+
+            // PacketType
+            case 5:
+                data.packettype = readData;
+                break;
+
+            // AddrType
+            case 12:
+                data.addrtype = readData;
+                break;
+
+            // Bond
+            case 13:
+                data.bond = readData;
+                break;
+
+            // data size
+            case 14:
+                data.data_len = (int)readData;
+                break;
+
+            // Sender , data
+            default:
+                // Sender
+                if ((5 < pos) && (pos < 12)){
+                    data.sender[pos-6] = readData;
+                }
+                else if (pos > 14 ){
+                    data.data[pos - 14] = readData;
+                }
+                break;
+        }
+
+        pos++;
+
+        // end of data
+        if (pos > scanLen){
+            pos = 0;
+            scanLen = 1;
+            dataCount++;
+            dataIn++;
+            dataIn %= BUFF_SIZE;
+            if (dataIn == dataOut) {
+              //Delete old data
+              dataOut++;
+              dataCount--;
             }
         }
-        time = millis();
-        // �f�[�^�擾������0�A��莞�Ԍo�߂Ō������I��
-        if ((buff_count == 0) || (time > timeoutEnd)){
-            end_flg = true;
-        }
     }
-    // �X�L�����f�[�^����
-    if (scan_len < (int)0x0b){
-        buff_count = 0;
-        return false;
+    else {
+        pos = 0;
+        scanLen = 1;
+        broken = false;
     }
-    
-    return true;
-    
 }
 
 /**
@@ -301,13 +300,13 @@ void FaBoBLE::init() {
 
     // Connect bleBrick.
     bleBrick.begin(BLE_URAT);
-    
+
     // send BGAPI command.
     sendCommand(COMMAND_RESET, 5);
-    
+
     // Wait reply.
-    delay(2000);
-    
+    delay(WAIT_REPLY);
+
     // Flash of software serial.
     bleBrick.flush();
 }
@@ -318,8 +317,8 @@ void FaBoBLE::init() {
  *
  */
 bool FaBoBLE::setScanParams(byte param[]) {
-    
-    
+    bleBrick.flush();
+
     bleBrick.write((byte)0x00); // 0:�R�}���h
     bleBrick.write((byte)0x05); // 1:�T�C�Y�@
     bleBrick.write((byte)0x06); // class
@@ -329,10 +328,10 @@ bool FaBoBLE::setScanParams(byte param[]) {
     bleBrick.write(param[2]); // scan_window  1  0x00XX
     bleBrick.write(param[3]); // scan_window  2  0xXX00
     bleBrick.write(param[4]);  // 0x01,
-    
+
     // Waiting reply.
     delay(WAIT_REPLY);
-    
+
     // Receive BGAPI response.
     byte buffer[10];
     int i = 0;
@@ -340,7 +339,7 @@ bool FaBoBLE::setScanParams(byte param[]) {
         buffer[i] = bleBrick.read();
         i++;
     }
-    
+
     return errorCheck(buffer);
 }
 
@@ -348,22 +347,26 @@ bool FaBoBLE::setScanParams(byte param[]) {
  * @fn
  * Scan start.
  */
-bool FaBoBLE::scanStart() {
-    
+bool FaBoBLE::scan() {
+
     // send BGAPI command.
     sendCommand(COMMAND_START_DISCOVER,5);
-    
+
     // Waiting reply.
-    delay(WAIT_REPLY);
-    
+//    delay(WAIT_REPLY);
+    delay(100);
     // Receive BGAPI response.
     byte buffer[10];
     int i = 0;
     while (bleBrick.available()) {
         buffer[i] = bleBrick.read();
+
         i++;
+        if (i > 5){
+          break;
+        }
     }
-    
+
     return errorCheck(buffer);
 }
 
@@ -396,7 +399,6 @@ void FaBoBLE::sendCommand(byte command[], int length)
     }
 }
 
-
 /**
  * @fn
  * Error check.
@@ -405,7 +407,7 @@ bool FaBoBLE::errorCheck(byte buffer[]){
     // Error check.
     if(buffer[0] == 0x00 && buffer[1] == 0x02 && buffer[2] == 0x06){
         if(buffer[4] == 0x00 && buffer[5] == 0x00){
-            
+
             return true;
         }
         else {
@@ -430,3 +432,22 @@ bool FaBoBLE::errorCheck(byte buffer[]){
     }
 }
 
+/**
+ * @fn
+ * Get ScanData Count.
+ */
+int FaBoBLE::getDataCount() {
+	  return dataCount;
+}
+
+/**
+ * @fn
+ * Get ScanData.
+ */
+bool FaBoBLE::getScanData(ScanData *out) {
+	  if (dataCount == 0) return false;
+	  memcpy(out, &dataBuff[dataOut++], sizeof(ScanData));
+	  dataOut %= BUFF_SIZE;
+	  dataCount--;
+	  return true;
+}
