@@ -6,7 +6,7 @@ FaBoBLE::ScanData buff;
 
 void setup() {
   // ログ出力用
-  Serial.begin(115200);
+  Serial.begin(9600);
   Serial.println("Start!");
   myBle.setDebug();
 
@@ -49,21 +49,21 @@ void loop() {
     Serial.print("RSSI:");
     Serial.print(buff.rssi);
     Serial.print(" PacketType:");
-    hex_output(buff.packettype);
+    hex_out(buff.packettype);
     Serial.print(" Sender:");
-    hex_output(buff.sender[0]);
-    hex_output(buff.sender[1]);
-    hex_output(buff.sender[2]);
-    hex_output(buff.sender[3]);
-    hex_output(buff.sender[4]);
-    hex_output(buff.sender[5]);
+    hex_out(buff.sender[0]);
+    hex_out(buff.sender[1]);
+    hex_out(buff.sender[2]);
+    hex_out(buff.sender[3]);
+    hex_out(buff.sender[4]);
+    hex_out(buff.sender[5]);
     Serial.print(" AddrType:");
-    hex_output(buff.addrtype);
+    hex_out(buff.addrtype);
     Serial.print(" Bond:");
-    hex_output(buff.bond);
+    hex_out(buff.bond);
     Serial.print(" Data:");
     for (int i = 0 ; i < buff.data_len ; i++) {
-      hex_output(buff.data[i]);
+      hex_out(buff.data[i]);
     }
     Serial.println("");
   }
@@ -72,7 +72,7 @@ void loop() {
 }
 
 // 出力処理(16進数２桁)
-void hex_output(byte out_byte) {
+void hex_out(byte out_byte) {
   if (out_byte < 0x10) {
     Serial.print("0");
   }

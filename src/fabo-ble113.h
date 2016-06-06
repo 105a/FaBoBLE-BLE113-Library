@@ -159,7 +159,7 @@ private:
     int BLE_URAT = 9600;
 
     // Speed of Serial for DEBUG.
-    int DEBUG_URAT = 115200;
+    int DEBUG_URAT = 9600;
 };
 
 #endif

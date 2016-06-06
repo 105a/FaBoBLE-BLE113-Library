@@ -308,7 +308,11 @@ void FaBoBLE::init() {
     delay(WAIT_REPLY);
 
     // Flash of software serial.
-    bleBrick.flush();
+    byte buffer[1];
+    while (bleBrick.available()) {
+        buffer[0] = bleBrick.read();
+    }
+
 }
 
 /**
