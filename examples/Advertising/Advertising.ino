@@ -40,7 +40,7 @@ void setup()
     Serial.println("Failed:setAdvParams()"); 
   }
 
-  if(faboBLE.setMode()){
+  if(faboBLE.startAdv()){
     Serial.println("Success:Start Beacon advertising"); 
   } else {
     Serial.println("Failed:Start Beacon advertising"); 
@@ -57,7 +57,7 @@ void loop()
   if (buttonState == HIGH && isFirst == false) {
       isFirst == true;
       if(!faboBLE.isAdvertising()){
-        if(faboBLE.setMode()){
+        if(faboBLE.startAdv()){
           Serial.println("Success:Start Beacon advertising"); 
         } else {
           Serial.println("Failed:Start Beacon advertising"); 

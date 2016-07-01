@@ -1,9 +1,15 @@
 /**
- * @file fabo-ble113.cpp
- * @brief fabo libtary of BLE113 BGAPI
- * @author Akira Sasaki, Koji Shimakage
- * @date 2,6, 2015
- */
+ @file fabo-ble113.cpp
+ @brief This is a library for the FaBo BLE SiliconLabs Serial Brick.
+
+   http://fabo.io/301.html
+
+   Released under APACHE LICENSE, VERSION 2.0
+
+   http://www.apache.org/licenses/
+
+ @author FaBo<info@fabo.io>
+*/
 
 #include "fabo-ble113.h"
 #include <SoftwareSerial.h>
@@ -14,17 +20,15 @@ FaBoBLE::BeaconParam beaconParam;
 SoftwareSerial bleBrick(12, 13);
 
 /**
- * @fn
- * Enable debug message.
- */
+   @brief Enable debug message.
+*/
 void FaBoBLE::setDebug(){
     DEBUG = true;
 }
 
 /**
- * @fn
- * Set beacon uuid.
- * @param uuid[] UUID(16bytes)
+ * @brief Set beacon uuid.
+ * @param [in] uuid[] UUID(16bytes)
  */
 void FaBoBLE::setBeaconUuid(byte uuid[]){
 
@@ -32,35 +36,34 @@ void FaBoBLE::setBeaconUuid(byte uuid[]){
 }
 
 /**
- * @fn
- * Set beacon major id.
- * @param major[] majorId(2bytes)
- */
+   @brief Set beacon major id.
+   @param [in] major[] majorId(2bytes)
+*/
 void FaBoBLE::setBeaconMajor(byte major[]){
 
     memcpy(beaconParam.major, major, 2);
 }
 
 /**
- * @fn
- * Set beacon minor id.
- * @param major[] minorId(2bytes)
- */
+  @brief Set beacon minor id.
+  @param [in] minor[] minorId(2bytes)
+*/
 void FaBoBLE::setBeaconMinor(byte minor[]){
 
     memcpy(beaconParam.minor, minor, 2);
 }
 
 /**
- * @fn
- * send beacon(start advertising).
- */
+   @brief send beacon(start advertising).
+*/
 bool FaBoBLE::sendBeacon(){
 
     // send BGAPI command.
     sendCommand(COMMAND_SEND_BEACON, 6);
 
-    // iBeacon header.
+    /**
+       @brief iBeacon header.
+    */
     byte beaconHeader[9] = {  0x02, // Flags[0], Bluetooth 4.0 Core Specification
         0x01, // Flags[1], Bluetooth 4.0 Core Specification
         0x06, // Flags[2], Bluetooth 4.0 Core Specification
@@ -117,10 +120,9 @@ bool FaBoBLE::sendBeacon(){
 }
 
 /**
- * @fn
- * set mode.
- */
-bool FaBoBLE::setMode()
+   @brief start advertising.
+*/
+bool FaBoBLE::startAdv()
 {
     // send BGAPI command.
     sendCommand(COMMAND_SET_MODE_FOR_BEACON, 6);
@@ -140,9 +142,8 @@ bool FaBoBLE::setMode()
 }
 
 /**
- * @fn
- * Set Adv Parameters.
- */
+   @brief Set Adv Parameters.
+*/
 bool FaBoBLE::setAdvParameters()
 {
 
@@ -164,7 +165,6 @@ bool FaBoBLE::setAdvParameters()
 }
 
 /**
- * @fn
  * stop advertising.
  */
 bool FaBoBLE::stopAdv()
@@ -193,8 +193,7 @@ bool FaBoBLE::stopAdv()
 }
 
 /**
- * @fn
- * scan.
+ * scan data analysis.
  */
 void FaBoBLE::tick() {
 
@@ -293,11 +292,9 @@ void FaBoBLE::tick() {
 }
 
 /**
- * @fn
- * init.
+ * @brief BLE init.
  */
 void FaBoBLE::init() {
-
     // Connect bleBrick.
     bleBrick.begin(BLE_URAT);
 
@@ -312,19 +309,17 @@ void FaBoBLE::init() {
     while (bleBrick.available()) {
         buffer[0] = bleBrick.read();
     }
-
 }
 
 /**
- * @fn
- * Set scan parameters
- *
- */
+  @brief Set scan parameters
+  @param [in] param[] scan parameters
+*/
 bool FaBoBLE::setScanParams(byte param[]) {
     bleBrick.flush();
 
-    bleBrick.write((byte)0x00); // 0:�R�}���h
-    bleBrick.write((byte)0x05); // 1:�T�C�Y�@
+    bleBrick.write((byte)0x00);
+    bleBrick.write((byte)0x05);
     bleBrick.write((byte)0x06); // class
     bleBrick.write((byte)0x07);
     bleBrick.write(param[0]); // scan_interval 1  0x00XX  0x4 - 0x0004
@@ -348,17 +343,16 @@ bool FaBoBLE::setScanParams(byte param[]) {
 }
 
 /**
- * @fn
- * Scan start.
- */
+   @brief BLE Scan start.
+*/
 bool FaBoBLE::scan() {
 
     // send BGAPI command.
     sendCommand(COMMAND_START_DISCOVER,5);
 
     // Waiting reply.
-//    delay(WAIT_REPLY);
     delay(100);
+
     // Receive BGAPI response.
     byte buffer[10];
     int i = 0;
@@ -375,25 +369,28 @@ bool FaBoBLE::scan() {
 }
 
 /**
- * @fn
- * Status of advertising.
- */
+   @brief Status of advertising.
+   @retval true  is advertising
+   @retval false is not advertising
+*/
 bool FaBoBLE::isAdvertising(){
     return is_advertising;
 }
 
 /**
- * @fn
- * Status is scanning.
- */
+   @brief Status is scanning.
+   @retval true  is scanning
+   @retval false is not scanning
+*/
 bool FaBoBLE::isScanning(){
     return is_scanning;
 }
 
 /**
- * @fn
- * Send command.
- */
+  @brief Send command.
+  @param [in] command[] command bytes
+  @param [in] length    command length
+*/
 void FaBoBLE::sendCommand(byte command[], int length)
 {
 
@@ -404,9 +401,9 @@ void FaBoBLE::sendCommand(byte command[], int length)
 }
 
 /**
- * @fn
- * Error check.
- */
+   @brief Error checking of the response data.
+   @param [in] buffer response data
+*/
 bool FaBoBLE::errorCheck(byte buffer[]){
     // Error check.
     if(buffer[0] == 0x00 && buffer[1] == 0x02 && buffer[2] == 0x06){
