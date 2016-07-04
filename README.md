@@ -1,14 +1,16 @@
 # FaBoBLE-BLE113-Library
 
-# FaBoBLE
+This is a library for the FaBo #301 BLE SiliconLabs Serial Brick.
 
-This is a library for FaBo BLE Brick.
+## FaBo BLE SiliconLabs Serial Brick
+
+[#301 BLE SiliconLabs Serial Brick](http://fabo.io/301.html)
 
 # BLE113
 
-BLE113 is Bluegiga's ble module.
+BLE113 is SiliconLabs's BLE module.
 
-# Datasheet
+# BLE113 Datasheet
 
 [BLE113 Datasheet](http://www.mouser.com/catalog/specsheets/Bluegiga_Technologies_BLE113_Datasheet.pdf)
 
@@ -18,4 +20,4 @@ BLE113 is Bluegiga's ble module.
 
 # How to install.
 
-[Installing Additional Arduino Libraries](https://www.arduino.cc/en/Guide/Libraries#toc3)
+[Installing Additional Arduino Libraries](https://www.arduino.cc/en/Guide/Libraries)
